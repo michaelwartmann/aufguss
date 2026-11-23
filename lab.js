@@ -37,12 +37,13 @@
   }
 
   // ---------- the arm as a human arm: 7 joint angles (degrees), each inside its normal range of motion (AAOS) ----------
-  // shoulder: flexion (arm forward and up) / extension, abduction (sideways up), rotation (internal +);
+  // shoulder as the biomechanics standard (ISB) names it: elevation (how high), plane of elevation (0° = to the side,
+  // 90° = to the front, negative = behind), axial rotation (internal +);
   // elbow flexion; forearm pronation (+, palm turns down/back) / supination; wrist flexion (+, towards the palm) / extension,
   // wrist deviation (ulnar +, radial −). Every joint moves as mean + harmonics: m + Σ a_k sin(k·2π·ph + p_k).
   const JOINTS = [
-    ["flex", -50, 180, ["Shoulder: lift forward", "Schulter: nach vorn heben"]],
-    ["abd", -30, 180, ["Shoulder: lift sideways", "Schulter: seitlich heben"]],
+    ["elev", 0, 180, ["Shoulder: how high the arm is lifted", "Schulter: wie hoch der Arm gehoben ist"]],
+    ["plane", -40, 130, ["Shoulder: direction (0° side, 90° front)", "Schulter: Richtung (0° seitlich, 90° vorn)"]],
     ["rot", -90, 90, ["Shoulder: turn the arm in", "Schulter: Arm einwärts drehen"]],
     ["elbow", 0, 145, ["Elbow: bend", "Ellbogen: beugen"]],
     ["pro", -80, 80, ["Forearm: turn the palm down", "Unterarm: Handfläche nach unten drehen"]],
@@ -55,10 +56,12 @@
   const soft = (x, lo, hi) => { const w = 10; if (x > hi - w) return hi - w * Math.exp(-(x - hi + w) / w); if (x < lo + w) return lo + w * Math.exp((x - lo - w) / w); return x; };
   // forward kinematics in the body frame (side +1 right, −1 left)
   function fk(side, q) {
-    const F = q.flex * D2R, A = side * q.abd * D2R;
-    const raise = clamp((Math.max(q.flex, q.abd) - 90) / 90, 0, 1); // the shoulder girdle lifts once the arm goes above horizontal
+    const E = q.elev * D2R, Pl = q.plane * D2R;
+    const raise = clamp((q.elev - 90) / 90, 0, 1); // the shoulder girdle lifts once the arm goes above horizontal
     const sh = v(side * (B.shX - 0.015 * raise), B.shY + 0.05 * raise, 0);
-    const u = rotX(rotZ(v(0, -1, 0), A), -F), f0 = rotX(v(0, 0, 1), -F);
+    const u = v(side * Math.sin(E) * Math.cos(Pl), -Math.cos(E), Math.sin(E) * Math.sin(Pl));
+    // reference for the arm's own turn: "forward" carried along the shortest swing from hanging down to u
+    const kx = cross(v(0, -1, 0), u), kl = len(kx), f0 = kl > 1e-6 ? rotAxis(v(0, 0, 1), mul(kx, 1 / kl), E) : v(0, 0, 1);
     const f0r = rotAxis(f0, u, side * q.rot * D2R), e = q.elbow * D2R;
     const fa = norm(add(mul(u, Math.cos(e)), mul(f0r, Math.sin(e))));
     const el = add(sh, mul(u, ARM.upper)), wr = add(el, mul(fa, ARM.fore));
@@ -73,28 +76,23 @@
   // the other way round: shoulder, elbow and grip points → joint angles (wrist straight). Two ways to name an arm above
   // the head (mostly forward or mostly sideways); keep the one closest to the previous sample so the angles stay smooth.
   function anglesOf(side, sh, el, hd, prev) {
-    const u = norm(sub(el, sh)), fa = norm(sub(hd, el));
-    const A1 = Math.asin(clamp(u[0], -1, 1)), c1 = [A1, Math.atan2(u[2], -u[1])];
-    const c2 = [(u[0] >= 0 ? Math.PI : -Math.PI) - A1, Math.atan2(-u[2], u[1])];
-    const cand = [c1, c2].map(([A, F]) => {
-      const q = { abd: side * A / D2R, flex: F / D2R, elbow: Math.acos(clamp(dot(u, fa), -1, 1)) / D2R, pro: 0, wflex: 0, wdev: 0, rot: prev ? prev.rot : 0 };
-      const f0 = rotX(v(0, 0, 1), -F), b = sub(fa, mul(u, dot(u, fa)));
-      if (len(b) > 0.02) q.rot = side * Math.atan2(dot(cross(f0, norm(b)), u), dot(f0, norm(b))) / D2R;
-      const out = JOINTS.reduce((s, [k, lo, hi]) => s + Math.max(0, lo - q[k], q[k] - hi), 0);
-      const jump = prev ? Math.abs(q.flex - prev.flex) + Math.abs(q.abd - prev.abd) + Math.abs(q.rot - prev.rot) : Math.abs(q.flex) + Math.abs(q.abd);
-      return { q, score: out * 4 + jump };
-    });
-    return (cand[0].score <= cand[1].score ? cand[0] : cand[1]).q;
+    const u = norm(sub(el, sh)), fa = norm(sub(hd, el)), E = Math.acos(clamp(-u[1], -1, 1));
+    const q = { elev: E / D2R, plane: Math.atan2(u[2], side * u[0]) / D2R, elbow: Math.acos(clamp(dot(u, fa), -1, 1)) / D2R, pro: 0, wflex: 0, wdev: 0, rot: prev ? prev.rot : 0 };
+    if (q.plane < -90) q.plane += 360;
+    const kx = cross(v(0, -1, 0), u), kl = len(kx), f0 = kl > 1e-6 ? rotAxis(v(0, 0, 1), mul(kx, 1 / kl), E) : v(0, 0, 1), b = sub(fa, mul(u, dot(u, fa)));
+    if (len(b) > 0.02) q.rot = side * Math.atan2(dot(cross(f0, norm(b)), u), dot(f0, norm(b))) / D2R;
+    return q;
   }
   // reach a grip point with the joint model: damped least squares over shoulder (3) and elbow (1), forearm and wrist given.
   // 4 joints for 3 coordinates leaves one free (the elbow can swing round the line shoulder–hand); a weak pull
   // towards a relaxed posture and towards the previous moment decides it, and the ranges of motion are respected.
-  const REST = { flex: 25, abd: 25, rot: 0, elbow: 70 }, FREE = ["flex", "abd", "rot", "elbow"];
+  const REST = { elev: 35, plane: 60, rot: 0, elbow: 35 }, FREE = ["elev", "plane", "rot", "elbow"];
   function solveArm(side, target, q0, iters = 12) {
     const q = Object.assign({}, q0), lim = Object.fromEntries(JOINTS.map(([k, lo, hi]) => [k, [lo, hi]]));
     const res = (x) => {
       const qq = Object.assign({}, q, x), qs = {}; for (const k in qq) qs[k] = lim[k] ? soft(qq[k], lim[k][0], lim[k][1]) : qq[k];
       const e = sub(fk(side, qs).hd, target), r = [e[0] * 100, e[1] * 100, e[2] * 100];
+      r.push(Math.max(0, qq.elev - 160) / 4); // straight up is where the shoulder names get ambiguous: stay a little below
       for (const k of FREE) { r.push((qq[k] - REST[k]) / 60 * 0.35); r.push((qq[k] - q0[k]) / 20 * 0.6); r.push(Math.max(0, lim[k][0] - qq[k], qq[k] - lim[k][1]) / 4); }
       return r;
     };
@@ -138,6 +136,12 @@
   const hand = (o) => Object.assign({ c: [0.25, 1.4, 0.3], a: [0, 0, 0], f: [1, 1, 1], p: [0, 90, 0], tw: 0, tp: 0, t0: 0 }, o);
   const PRESETS = {
     // as in the Aufguss.it Helicopter tutorial: towel folded in half, both corners in one hand just above the head; measured 0.8–0.9 loops/s in the video
+    // Aufguss.it 1 Helicopter, made in joints: towel 150×100 folded to 75×100, the corner with the two loose ends in one hand.
+    // The arm reaches up and out, the shoulder draws a cone (circumduction), the wrist bends outwards and helps.
+    // Like a planet on its ellipse: slow on the far side, fastest when the hand comes forward, towards the guests.
+    helicopter: { name: ["Helicopter (from the video)", "Hubschrauber (aus dem Video)"], grip: "corner", towel: "long", tempo: 0.85, asym: 0.5, hit: 0, native: true,
+      J: { R: jset({ elev: [128, 18, -90], plane: [45, 32, 0], rot: [-15, 8, 0], elbow: [30, 12, -90], pro: [0], wflex: [-15, 25, 90], wdev: [12, 10, 0] }) },
+      Lmode: "rest", torso: { tw: 6, tp: 90, le: 4, lp: 0, be: 0, bp: 0 } },
     propeller: { name: ["Propeller", "Propeller"], grip: "corner", towel: "long", tempo: 0.85, asym: 0.45, hit: 0.25,
       R: hand({ c: [0.02, 2.0, 0.06], a: [0.13, 0.04, 0.13], f: [1, 1, 1], p: [0, -90, 90], tw: 0 }), Lmode: "join", L: hand({}), torso: { tw: 4, tp: 0, le: 0, lp: 0, be: 0, bp: 0 } },
     flag: { name: ["Side flag", "Seitliche Fahne"], grip: "edge", towel: "wide", tempo: 0.6,
@@ -147,10 +151,10 @@
       R: hand({ c: [0.05, 1.65, 0.35], a: [0.38, 0.2, 0.06], f: [1, 2, 1], p: [0, 0, 90], tw: 40, tp: 0 }), Lmode: "join", L: hand({}), torso: { tw: 12, tp: 0, le: 4, lp: 0, be: 0, bp: 0 } },
     // made in joints: overhead (shoulder 170°, elbow bent, wrist cocked back), chop down to the front, elbow and wrist straighten at the hit
     lumberjack: { name: ["Lumberjack", "Holzfäller"], grip: "spread", towel: "wide", tempo: 0.5, asym: 0.6, hit: 0.25, tension: 0.06, native: true,
-      J: { R: jset({ flex: [95, 75, 90], abd: [20, 5, 90], rot: [0], elbow: [35, 25, 90], wflex: [-10, 35, -90] }) }, Lmode: "mirror", torso: { tw: 0, tp: 0, le: 0, lp: 0, be: 10, bp: 180 } },
+      J: { R: jset({ elev: [95, 75, 90], plane: [75, 5, -90], rot: [0], elbow: [35, 25, 90], wflex: [-10, 35, -90] }) }, Lmode: "mirror", torso: { tw: 0, tp: 0, le: 0, lp: 0, be: 10, bp: 180 } },
     // made in joints: both arms swing the open towel from low in front up over the head (the fast part), then lower it
     parachute: { name: ["Parachute", "Fallschirm"], grip: "spread", towel: "wide", tempo: 0.75, asym: 0.5, hit: 0.25, tension: 0.05, native: true,
-      J: { R: jset({ flex: [90, 70, -90], abd: [30, 8, -90], rot: [0], elbow: [25, 10, 90], wflex: [0, 15, 0] }) }, Lmode: "mirror", torso: { tw: 0, tp: 0, le: 0, lp: 0, be: 12, bp: 0 } },
+      J: { R: jset({ elev: [90, 70, -90], plane: [60, 8, 90], rot: [0], elbow: [25, 10, 90], wflex: [0, 15, 0] }) }, Lmode: "mirror", torso: { tw: 0, tp: 0, le: 0, lp: 0, be: 12, bp: 0 } },
     pizza: { name: ["Pizza (flat spin)", "Pizza"], grip: "spin", towel: "long", tempo: 2.4, spin: 2.2,
       R: hand({ c: [0.08, 1.72, 0.32], a: [0.02, 0.015, 0.02], f: [1, 2, 1], p: [0, 0, 90] }), Lmode: "join", L: hand({}), torso: { tw: 0, tp: 0, le: 0, lp: 0, be: 0, bp: 0 } },
   };
@@ -158,7 +162,7 @@
   const TOWELS = {
     open: [16, 11, 1.5, 1.0, 1],     // open, 150 × 100
     wide: [11, 9, 1.0, 0.75, 2],     // folded once, held along the 1 m edge: 100 wide, 75 hanging
-    long: [9, 12, 0.75, 1.0, 2],     // folded once, held at a corner: 75 × 100 (the helicopter towel)
+    long: [12, 16, 0.75, 1.0, 2],     // folded once, held at a corner: 75 × 100 (the helicopter towel)
     quarter: [9, 7, 0.75, 0.5, 4],   // folded twice: 75 × 50
     strip: [5, 12, 0.375, 1.0, 4],   // folded lengthwise twice: 37.5 × 100
   };
@@ -183,8 +187,10 @@
     constructor(spec) {
       const [cols, rows, w, h, layers = 1] = spec;
       Object.assign(this, { cols, rows, w, h, layers });
-      // terry bends easily; folded layers slide on each other, so a fold adds a little stiffness, not a lot
-      const bend = 0.18 + 0.05 * layers, bendD = 0.06 + 0.02 * layers;
+      // terry bends almost freely: near the hand the towel just hangs; it only goes flat where it is pulled (centrifugal force).
+      // In a position-based solver a link of strength k applied 14 times acts like 1 − (1 − k)^14, so bending links must be tiny:
+      // 0.004 per pass ≈ 5 % effective (one layer), folded layers slide on each other and add only a little.
+      const bend = 0.002 + 0.002 * layers, bendD = 0.001 * layers;
       this.p = []; this.q = []; this.links = []; this.pins = [];
       for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const pt = v(c / (cols - 1) * w - w / 2, 1.6 - r / (rows - 1) * h, 0.4); this.p.push(pt); this.q.push(pt.slice()); }
       const link = (a, b, k) => this.links.push([a, b, len(sub(this.p[a], this.p[b])), k]);
@@ -261,7 +267,7 @@
   // ---------- the simulation ----------
   class Lab {
     constructor() {
-      this.spec = clone(PRESETS.propeller); this.presetId = "propeller";
+      this.spec = clone(PRESETS.helicopter); this.presetId = "helicopter";
       this.t = 0; this.phase = 0; this.running = true; this.speed = 1;
       this.particles = []; this.trail = [];
       this.meter = { air: 0, open: 0, hand: 0 };
@@ -296,7 +302,7 @@
     // joint angles of one arm at phase ph (size scales every swing; extra = more abduction, e.g. pulling the hands apart)
     jq(J, ph, extraAbd = 0) {
       const size = this.spec.size ?? 1, q = {};
-      for (const [k, lo, hi] of JOINTS) q[k] = soft(jAngle(J[k] || { m: 0 }, ph, size) + (k === "abd" ? extraAbd : 0), lo, hi);
+      for (const [k, lo, hi] of JOINTS) q[k] = soft(jAngle(J[k] || { m: 0 }, ph, size) - (k === "plane" ? extraAbd : 0), lo, hi);
       return q;
     }
     // turn the hand path (or the keyframes) into joint loops: sample the arm solver over one loop and fit each joint
@@ -308,8 +314,8 @@
         if (!target(0, side)) return null;
         const t0 = target(0, side), a0 = this.arm(I, side, t0), base = { pro: 0, wflex: 0, wdev: 0 };
         const err = (q, t) => len(sub(fk(side, q).hd, t));
-        const seeds = [anglesOf(side, a0.sh, a0.el, a0.hd, null), REST, { flex: 160, abd: 20, rot: 0, elbow: 40 }, { flex: 90, abd: 10, rot: 30, elbow: 60 }, { flex: 10, abd: 150, rot: 0, elbow: 40 }];
-        const cost = (q) => err(q, t0) * 100 + Math.abs(q.abd - 25) / 60 + Math.abs(q.rot) / 60;
+        const seeds = [anglesOf(side, a0.sh, a0.el, a0.hd, null), REST, { elev: 160, plane: 70, rot: 0, elbow: 40 }, { elev: 90, plane: 80, rot: 30, elbow: 60 }, { elev: 150, plane: 10, rot: 0, elbow: 40 }];
+        const cost = (q) => err(q, t0) * 100 + Math.abs(q.plane - 60) / 90 + Math.abs(q.rot) / 60;
         const sols = seeds.map((q) => solveArm(side, t0, Object.assign({}, base, q), 60));
         let prev = sols.sort((a, b) => cost(a) - cost(b))[0];
         let qs = [];
@@ -327,6 +333,7 @@
         return fitJoints(qs);
       };
       this._raw = 0; S.J = { R: fitSide(1) };
+      if (S.wrist) for (const k in S.wrist) { const x = S.wrist[k]; S.J.R[k] = { m: x[0], a: [x[1] || 0], p: [x[2] || 0] }; } // the wrist's own work, on top of the path
       if (S.path) { const L = fitSide(-1); if (L) { S.J.L = L; S.Lmode = "own"; } else S.Lmode = "rest"; }
       else if (S.Lmode === "own") S.J.L = fitSide(-1);
     }
@@ -614,7 +621,7 @@
     for (let i = 0; i < 90; i++) L2.step(dt, true); // settle
     const cl = L2.cloth, kick = norm(cross(sub(tipOf(cl), L2.arms.R.hd), v(0, 1, 0))), push = len(kick) > 0.1 ? kick : v(1, 0, 0);
     cl.p.forEach((p, i) => { const r = len(sub(p, L2.arms.R.hd)); cl.q[i] = sub(p, mul(push, 0.6 * r * dt)); });
-    const snaps = [], tipx = [], T = 8, hd = L2.arms.R.hd;
+    const snaps = [], tipx = [], T = 6, hd = L2.arms.R.hd;
     for (let i = 0; i < T / dt; i++) { L2.step(dt, true); if (i % 2 === 0) { snaps.push(cl.p.map((p) => sub(p, hd))); tipx.push(dot(sub(tipOf(cl), hd), push)); } if (i % 60 === 0) { report && report(i * dt / T * 0.3); await tick(); } }
     const n = snaps[0].length, mean = [...Array(n)].map((_, j) => mul(snaps.reduce((s_, q) => add(s_, q[j]), [0, 0, 0]), 1 / snaps.length));
     const X = []; for (let j = 0; j < n; j++) for (let c = 0; c < 3; c++) X.push(snaps.map((q) => q[j][c] - mean[j][c]));
@@ -623,10 +630,10 @@
     return { modes, f1: domFreq(tipx, 2 * dt), chain: 0.599 / Math.sqrt(Math.max(0.2, Lhang)), Lhang };
   }
   async function sweep(spec, report) {
-    const out = [], fs = []; for (let f = 0.3; f <= 2.01; f += 0.1) fs.push(+f.toFixed(2));
+    const out = [], fs = []; for (let f = 0.3; f <= 2.01; f += 0.15) fs.push(+f.toFixed(2));
     for (let k = 0; k < fs.length; k++) {
       const f = fs[k], sp = clone(spec); sp.J = clone(spec.J); sp.tempo = f;
-      const L2 = freshLab(sp), dt = 1 / 60, settle = Math.max(1.5, 1.5 / f), meas = Math.max(2, 3 / f);
+      const L2 = freshLab(sp), dt = 1 / 60, settle = Math.max(1, 1 / f), meas = Math.max(1.5, 2 / f);
       for (let t = 0; t < settle; t += dt) L2.step(dt, true);
       const H = [[0, 0], [0, 0], [0, 0]], P = [[0, 0], [0, 0], [0, 0]]; let air = 0, nA = 0, t0 = L2.t;
       for (let t = 0; t < meas; t += dt) {
@@ -695,7 +702,7 @@
   function getP(spec, [h, k, i]) { const o = dig(spec, h); if (!o) return undefined; return i == null ? o[k] : (o[k] || [])[i]; }
   function setP(spec, [h, k, i], val) { const o = dig(spec, h); if (!o) return; if (i == null) o[k] = val; else { o[k] = o[k] || []; for (let j = 0; j < i; j++) if (o[k][j] == null) o[k][j] = 0; o[k][i] = val; } }
   // explore in joint space: the means, swings and timings of the joints that matter most
-  const NUMJ = (s) => ["flex", "abd", "rot", "elbow", "wflex"].flatMap((k) => { const [, lo, hi] = JOINTS.find((j) => j[0] === k); return [[`J.R.${k}`, "m", null, lo, hi], [`J.R.${k}`, "a", 0, 0, 80], [`J.R.${k}`, "p", 0, -180, 180]]; }).concat([["", "tempo", null, 0.3, 2.4]]);
+  const NUMJ = (s) => ["elev", "plane", "rot", "elbow", "wflex"].flatMap((k) => { const [, lo, hi] = JOINTS.find((j) => j[0] === k); return [[`J.R.${k}`, "m", null, lo, hi], [`J.R.${k}`, "a", 0, 0, 80], [`J.R.${k}`, "p", 0, -180, 180]]; }).concat([["", "tempo", null, 0.3, 2.4]]);
 
   // ---------- UI ----------
   const lang = (store.get("lang", null) || (navigator.language || "en")).slice(0, 2) === "de" ? "de" : "en";
@@ -732,23 +739,23 @@
   // controls in three layers: simple (rhythm and size), joints (tap one to change it), expert (the old hand path)
   // slider: [label, path, min, max, step, unit]
   let CTL = [];
+  // the few things a person can feel: size, the whoop, the towel's weight. The rhythm (Hz) sits under the picture.
   function simpleList() {
-    const S = lab.spec, out = [[tr("Rhythm: loops per second (Hz)", "Rhythmus: Schleifen pro Sekunde (Hz)"), ["", "tempo", null], 0.2, 2.5, 0.05, " Hz"],
-      [tr("Size of the movement", "Größe der Bewegung"), ["", "size", null], 0, 1.6, 0.05, "×"],
-      [tr("Slow back, fast forward", "Langsam zurück, schnell vor"), ["", "asym", null], 0, 0.85, 0.05, ""],
-      [tr("Moment of the hit (in the loop)", "Moment des Schlags (in der Schleife)"), ["", "hit", null], 0, 1, 0.05, ""]];
+    return [[tr("Size of the movement", "Größe der Bewegung"), ["", "size", null], 0, 1.6, 0.05, "×"],
+      [tr("Whoop: faster forward, slower back", "Wusch: schneller vor, langsamer zurück"), ["", "asym", null], 0, 0.85, 0.05, ""],
+      [tr("Towel weight (dry ≈ 400 g)", "Tuchgewicht (trocken ≈ 400 g)"), ["", "grams", null], 200, 900, 25, " g"]];
+  }
+  function moreList() {
+    const S = lab.spec, out = [[tr("Where in the loop the fast part is", "Wo in der Schleife der schnelle Teil ist"), ["", "hit", null], 0, 1, 0.05, ""]];
     if (S.grip === "spread" || S.grip === "edge") out.push([tr("Pull the hands apart at the hit", "Hände beim Schlag auseinanderziehen"), ["", "tension", null], 0, 0.15, 0.01, "m"]);
     if (S.grip === "spin") out.push([tr("Spin (turns per second)", "Drehung (Umdrehungen pro Sekunde)"), ["", "spin", null], 0, 4, 0.1, "/s"]);
     out.push([tr("Body follows the hands", "Körper folgt den Händen"), ["", "follow", null], 0, 25, 1, "°"]);
-    out.push([tr("Towel weight (whole towel, dry ≈ 400 g)", "Tuchgewicht (ganzes Tuch, trocken ≈ 400 g)"), ["", "grams", null], 200, 900, 25, " g"]);
     return out;
   }
   const jointRows = (side, k) => { const [, lo, hi] = JOINTS.find((j) => j[0] === k), h = `J.${side}.${k}`; return [
     [tr("Position (middle of the swing)", "Stellung (Mitte des Schwungs)"), [h, "m", null], lo, hi, 1, "°"],
     [tr("Swing (± around it)", "Schwung (± darum herum)"), [h, "a", 0], 0, 90, 1, "°"],
-    [tr("Timing in the loop", "Zeitpunkt in der Schleife"), [h, "p", 0], -180, 180, 5, "°"],
-    [tr("Second swing, twice per loop", "Zweiter Schwung, zweimal pro Schleife"), [h, "a", 1], 0, 60, 1, "°"],
-    [tr("Its timing", "Sein Zeitpunkt"), [h, "p", 1], -180, 180, 5, "°"]]; };
+    [tr("Timing in the loop", "Zeitpunkt in der Schleife"), [h, "p", 0], -180, 180, 5, "°"]]; };
   function expertList() {
     const S = lab.spec; if (S.native || S.path || !S.R) return [];
     const H = (h, title) => [
@@ -782,10 +789,10 @@
         return `<div class="joint"><button class="jrow" data-j="${id}" aria-expanded="${openJ === id}"><span class="jn">${tr(...name)}</span><span class="jv" id="jv-${side}-${k}"></span><span class="jbar" aria-hidden="true"><i class="jr" id="jr-${side}-${k}"></i><i class="jm" id="jm-${side}-${k}"></i><i class="j0" style="left:${(-lo) / (hi - lo) * 100}%"></i></span></button>`
           + (openJ === id ? `<div class="jsl">${jointRows(side, k).map(sliderHTML).join("")}</div>` : "") + "</div>"; }).join("")).join("");
     const ex = expertList();
-    $("#sliders").innerHTML = `<h3 class="jt">${tr("Rhythm and size", "Rhythmus und Größe")}</h3>` + simpleList().map(sliderHTML).join("")
-      + `<p class="hint">${tr("Each arm has seven joint angles, every one inside the range a human arm can move. Tap a joint to change it; the bar shows its range of motion, the shaded part what it uses in this loop, the dot where it is now.", "Jeder Arm hat sieben Gelenkwinkel, jeder im Bewegungsumfang eines menschlichen Arms. Tipp ein Gelenk an, um es zu ändern; der Balken zeigt den Bewegungsumfang, der dunkle Teil, was diese Schleife davon nutzt, der Punkt, wo es gerade ist.")}</p>`
-      + jhtml
-      + `<details><summary>${tr("Body", "Körper")}</summary>${bodyList().map(sliderHTML).join("")}</details>`
+    $("#sliders").innerHTML = simpleList().map(sliderHTML).join("")
+      + `<details${openJ ? " open" : ""}><summary>${tr("Arm angles: watch them, or change one", "Armwinkel: zuschauen oder einen ändern")}</summary><p class="hint">${tr("Each arm has seven joint angles, every one inside the range a human arm can move. Tap a joint to change it; the bar shows its range of motion, the shaded part what it uses in this loop, the dot where it is now.", "Jeder Arm hat sieben Gelenkwinkel, jeder im Bewegungsumfang eines menschlichen Arms. Tipp ein Gelenk an, um es zu ändern; der Balken zeigt den Bewegungsumfang, der dunkle Teil, was diese Schleife davon nutzt, der Punkt, wo es gerade ist.")}</p>`
+      + jhtml + `</details>`
+      + `<details><summary>${tr("More: timing, body", "Mehr: Timing, Körper")}</summary>${moreList().map(sliderHTML).join("")}${bodyList().map(sliderHTML).join("")}</details>`
       + (ex.length ? `<details><summary>${tr("Expert: draw the hand path instead", "Experten: stattdessen die Handbahn vorgeben")}</summary><p class="hint">${tr("These move the hand along a loop; the arm then finds its joint angles by itself (and the joint sliders above are recalculated).", "Diese führen die Hand auf einer Schleife; der Arm sucht sich dann selbst seine Gelenkwinkel (und die Gelenkregler oben werden neu berechnet).")}</p>${ex.map(sliderHTML).join("")}</details>` : "");
     document.querySelectorAll("#sliders input").forEach((el) => (el.oninput = () => {
       const [, path, , , step, unit] = CTL[+el.dataset.i]; setV(path, +el.value); $("#o" + el.dataset.i).textContent = fmt(+el.value, step) + unit;
@@ -880,7 +887,7 @@
       buildControls(); lab.reset();
     };
     $("#play").onclick = () => { lab.running = !lab.running; $("#play").textContent = lab.running ? "⏸" : "▶"; };
-    $("#slow").oninput = (e) => { lab.speed = +e.target.value; $("#slowO").textContent = lab.speed.toFixed(2).replace(/0$/, "") + "×"; };
+    $("#slow").oninput = (e) => { lab.spec.tempo = +e.target.value; };
     $("#restart").onclick = () => lab.reset();
     document.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { const [y, p] = b.dataset.view.split(",").map(Number); lab.cam.yaw = y; lab.cam.pitch = p; }));
     $("#air").onchange = (e) => (view.showAir = e.target.checked);
@@ -940,7 +947,7 @@
 
   // meters
   function meters() {
-    const m = lab.meter, hz = lab.spec.tempo * lab.speed;
+    const m = lab.meter, hz = lab.spec.tempo * lab.speed; if (document.activeElement !== $("#slow")) $("#slow").value = lab.spec.tempo;
     $("#mHz").textContent = (lang === "de" ? hz.toFixed(2).replace(".", ",") : hz.toFixed(2)) + " Hz";
     $("#mHzInfo").textContent = tr(`one loop in ${(1 / hz).toFixed(2)} s`, `eine Schleife in ${(1 / hz).toFixed(2).replace(".", ",")} s`);
     $("#mAir").textContent = m.air.toFixed(2); $("#mOpen").textContent = Math.round(clamp(m.open, 0, 1) * 100) + "%"; $("#mHand").textContent = m.hand.toFixed(1);
@@ -956,12 +963,12 @@
     document.querySelectorAll("[data-en]").forEach((el) => (el.textContent = lang === "de" ? el.dataset.de : el.dataset.en));
   }
 
-  texts(); buildPresets(); wire(); loadPreset("propeller");
+  texts(); buildPresets(); wire(); loadPreset("helicopter");
   const qs = new URLSearchParams(location.search), qt = qs.get("t");
   if (qt && keyTechs.find((t) => t.id === qt)) { loadPreset("t:" + qt); buildPresets(); $("#preset").value = "t:" + qt; }
   else if (qt) { // techniques drawn with a built-in motion: start from the nearest lab preset
     const t = techniques.find((x) => x.id === qt), kind = t && t.demo && t.demo.kind;
-    const map = { rotate: "propeller", recorded: "propeller", sweep: "flag", eight: "eight", flatspin: "pizza", shovel: "parachute", whip: "lumberjack", comb: "parachute", wave: "eight", throw: "eight", fan: "eight" };
+    const map = { rotate: "helicopter", recorded: "helicopter", sweep: "flag", eight: "eight", flatspin: "pizza", shovel: "parachute", whip: "lumberjack", comb: "parachute", wave: "eight", throw: "eight", fan: "eight" };
     if (map[kind]) { loadPreset(map[kind]); lab.spec.clip = t.clip; syncClip(); $("#preset").value = map[kind]; }
   }
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
