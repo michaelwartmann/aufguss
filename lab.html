@@ -44,6 +44,17 @@
   #pad::after { content: ""; position: absolute; left: var(--x); top: var(--y); width: 30px; height: 30px; margin: -15px; border-radius: 50%; background: var(--wood); }
   .clipv { aspect-ratio: 16/9; width: 100%; border-radius: 10px; overflow: hidden; background: #000; }
   #out { word-break: break-all; }
+  .jt { font-size: .95rem; margin: 12px 0 4px; } .jt small { color: var(--muted); font-weight: 400; }
+  .joint { border-top: 1px solid var(--line); }
+  .jrow { width: 100%; display: grid; grid-template-columns: 1fr 3.2em; grid-template-rows: auto 12px; gap: 2px 8px; text-align: left; border: 0; border-radius: 8px; padding: 6px 4px; background: none; }
+  .jrow[aria-expanded=true] { background: var(--bg); }
+  .jv { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .jbar { grid-column: 1 / -1; position: relative; height: 8px; border-radius: 4px; background: var(--line); }
+  .jbar i { position: absolute; top: 0; height: 100%; }
+  .jr { background: var(--wood); opacity: .55; border-radius: 4px; }
+  .jm { width: 12px; height: 12px !important; top: -2px !important; margin-left: -6px; border-radius: 50%; background: var(--ember); }
+  .j0 { width: 2px; margin-left: -1px; background: var(--muted); opacity: .6; }
+  .jsl { padding: 0 4px 8px; }
   details summary { cursor: pointer; font-weight: 700; min-height: 32px; }
   @media (prefers-reduced-motion: reduce) { .meter i span { transition: none; } }
 </style>
