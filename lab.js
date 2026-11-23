@@ -137,26 +137,33 @@
   const jset = (o) => Object.fromEntries(JOINTS.map(([k]) => { const x = o[k] || [0]; return [k, { m: x[0], a: [x[1] || 0, x[3] || 0], p: [x[2] || 0, x[4] || 0] }]; }));
   const hand = (o) => Object.assign({ c: [0.25, 1.4, 0.3], a: [0, 0, 0], f: [1, 1, 1], p: [0, 90, 0], tw: 0, tp: 0, t0: 0 }, o);
   const PRESETS = {
-    // as in the Aufguss.it Helicopter tutorial: both hands together just above the head, small circle, ~1.1 turns/s at video speed
-    propeller: { name: ["Propeller", "Propeller"], grip: "corner", towel: "short", tempo: 1.1, asym: 0.45, hit: 0.25,
+    // as in the Aufguss.it Helicopter tutorial: towel folded in half, both corners in one hand just above the head; measured 0.8–0.9 loops/s in the video
+    propeller: { name: ["Propeller", "Propeller"], grip: "corner", towel: "long", tempo: 0.85, asym: 0.45, hit: 0.25,
       R: hand({ c: [0.02, 2.0, 0.06], a: [0.13, 0.04, 0.13], f: [1, 1, 1], p: [0, -90, 90], tw: 0 }), Lmode: "join", L: hand({}), torso: { tw: 4, tp: 0, le: 0, lp: 0, be: 0, bp: 0 } },
-    flag: { name: ["Side flag", "Seitliche Fahne"], grip: "edge", towel: "open", tempo: 0.6,
+    flag: { name: ["Side flag", "Seitliche Fahne"], grip: "edge", towel: "wide", tempo: 0.6,
       R: hand({ c: [0.3, 1.97, 0.18], a: [0.17, 0.03, 0.06], f: [1, 2, 1], p: [0, 90, 90] }), Lmode: "own",
       L: hand({ c: [-0.12, 1.02, 0.3], a: [0.4, 0.03, 0.06], f: [1, 2, 1], p: [0, 90, 90] }), torso: { tw: 10, tp: 0, le: 6, lp: 0, be: 0, bp: 0 } },
     eight: { name: ["Figure eight", "Acht"], grip: "corner", towel: "strip", tempo: 1.0, asym: 0.25, hit: 0.0,
       R: hand({ c: [0.05, 1.65, 0.35], a: [0.38, 0.2, 0.06], f: [1, 2, 1], p: [0, 0, 90], tw: 40, tp: 0 }), Lmode: "join", L: hand({}), torso: { tw: 12, tp: 0, le: 4, lp: 0, be: 0, bp: 0 } },
     // made in joints: overhead (shoulder 170°, elbow bent, wrist cocked back), chop down to the front, elbow and wrist straighten at the hit
-    lumberjack: { name: ["Lumberjack", "Holzfäller"], grip: "spread", towel: "open", tempo: 0.5, asym: 0.6, hit: 0.25, tension: 0.06, native: true,
+    lumberjack: { name: ["Lumberjack", "Holzfäller"], grip: "spread", towel: "wide", tempo: 0.5, asym: 0.6, hit: 0.25, tension: 0.06, native: true,
       J: { R: jset({ flex: [95, 75, 90], abd: [20, 5, 90], rot: [0], elbow: [35, 25, 90], wflex: [-10, 35, -90] }) }, Lmode: "mirror", torso: { tw: 0, tp: 0, le: 0, lp: 0, be: 10, bp: 180 } },
     // made in joints: both arms swing the open towel from low in front up over the head (the fast part), then lower it
-    parachute: { name: ["Parachute", "Fallschirm"], grip: "spread", towel: "open", tempo: 0.75, asym: 0.5, hit: 0.25, tension: 0.05, native: true,
+    parachute: { name: ["Parachute", "Fallschirm"], grip: "spread", towel: "wide", tempo: 0.75, asym: 0.5, hit: 0.25, tension: 0.05, native: true,
       J: { R: jset({ flex: [90, 70, -90], abd: [30, 8, -90], rot: [0], elbow: [25, 10, 90], wflex: [0, 15, 0] }) }, Lmode: "mirror", torso: { tw: 0, tp: 0, le: 0, lp: 0, be: 12, bp: 0 } },
-    pizza: { name: ["Pizza (flat spin)", "Pizza"], grip: "spin", towel: "square", tempo: 2.4, spin: 2.2,
+    pizza: { name: ["Pizza (flat spin)", "Pizza"], grip: "spin", towel: "long", tempo: 2.4, spin: 2.2,
       R: hand({ c: [0.08, 1.72, 0.32], a: [0.02, 0.015, 0.02], f: [1, 2, 1], p: [0, 0, 90] }), Lmode: "join", L: hand({}), torso: { tw: 0, tp: 0, le: 0, lp: 0, be: 0, bp: 0 } },
   };
-  const TOWELS = { // cols, rows, width, height (m). strip = 100×75 folded double lengthwise and again
-    strip: [4, 12, 0.375, 1.0], short: [4, 9, 0.38, 0.7], open: [10, 8, 1.0, 0.7], square: [9, 9, 0.75, 0.75], big: [12, 9, 1.5, 1.0],
+  // every towel is the standard waving towel 150 × 100 cm (about 400 g), open or folded: cols, rows, width, height (m), layers
+  const TOWELS = {
+    open: [16, 11, 1.5, 1.0, 1],     // open, 150 × 100
+    wide: [11, 9, 1.0, 0.75, 2],     // folded once, held along the 1 m edge: 100 wide, 75 hanging
+    long: [9, 12, 0.75, 1.0, 2],     // folded once, held at a corner: 75 × 100 (the helicopter towel)
+    quarter: [9, 7, 0.75, 0.5, 4],   // folded twice: 75 × 50
+    strip: [5, 12, 0.375, 1.0, 4],   // folded lengthwise twice: 37.5 × 100
   };
+  const TOWEL_ALIAS = { short: "long", square: "long", big: "open" }; // older saved motions
+  const towelOf = (k) => TOWELS[k] || TOWELS[TOWEL_ALIAS[k]] || TOWELS.wide;
   const clone = (o) => JSON.parse(JSON.stringify(o));
 
   // spline through keyframes (from techniques.js "keys" demos)
@@ -174,8 +181,10 @@
   // ---------- cloth ----------
   class Cloth {
     constructor(spec) {
-      const [cols, rows, w, h] = spec;
-      Object.assign(this, { cols, rows, w, h });
+      const [cols, rows, w, h, layers = 1] = spec;
+      Object.assign(this, { cols, rows, w, h, layers });
+      // terry bends easily; folded layers slide on each other, so a fold adds a little stiffness, not a lot
+      const bend = 0.18 + 0.05 * layers, bendD = 0.06 + 0.02 * layers;
       this.p = []; this.q = []; this.links = []; this.pins = [];
       for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const pt = v(c / (cols - 1) * w - w / 2, 1.6 - r / (rows - 1) * h, 0.4); this.p.push(pt); this.q.push(pt.slice()); }
       const link = (a, b, k) => this.links.push([a, b, len(sub(this.p[a], this.p[b])), k]);
@@ -184,9 +193,9 @@
         if (c < cols - 1) link(i, this.idx(c + 1, r), 1);
         if (r < rows - 1) link(i, this.idx(c, r + 1), 1);
         if (c < cols - 1 && r < rows - 1) { link(i, this.idx(c + 1, r + 1), 1); link(this.idx(c + 1, r), this.idx(c, r + 1), 1); }
-        if (c < cols - 2) link(i, this.idx(c + 2, r), 0.45);
-        if (r < rows - 2) link(i, this.idx(c, r + 2), 0.45);
-        if (c < cols - 2 && r < rows - 2) { link(i, this.idx(c + 2, r + 2), 0.2); link(this.idx(c + 2, r), this.idx(c, r + 2), 0.2); }
+        if (c < cols - 2) link(i, this.idx(c + 2, r), bend);
+        if (r < rows - 2) link(i, this.idx(c, r + 2), bend);
+        if (c < cols - 2 && r < rows - 2) { link(i, this.idx(c + 2, r + 2), bendD); link(this.idx(c + 2, r), this.idx(c, r + 2), bendD); }
       }
       this.prev = this.p.map((x) => x.slice());
     }
@@ -196,7 +205,7 @@
     // a little internal damping (terry cloth doesn't ring like silk), stiff links.
     step(dt, pins, colliders, drag) {
       const pinned = new Map(pins), n = this.p.length, cols = this.cols, rows = this.rows;
-      const AREAL = this.areal ?? 0.35, RHO = 0.95, CD = 1.2, CF = 0.06; // kg/m² (damp, not soaked terry), hot air kg/m³, flat-plate drag, skin friction
+      const AREAL = (this.areal ?? 0.27) * this.layers, RHO = 0.95, CD = 1.2, CF = 0.06; // kg/m² of the folded towel (a 400 g towel: 0.27 per layer), hot air kg/m³, flat-plate drag, skin friction
       const mNode = AREAL * this.w * this.h / n;
       const vel = this.p.map((p, i) => sub(p, this.q[i])); // per step
       // air: per quad, the velocity of the patch against still air, split into normal and tangential parts
@@ -260,7 +269,7 @@
       this.reset();
     }
     reset() {
-      this.cloth = new Cloth(TOWELS[this.spec.towel] || TOWELS.open);
+      this.cloth = new Cloth(towelOf(this.spec.towel)); this.cloth.areal = (this.spec.grams ?? 400) / 1000 / (1.5 * 1.0); this.cyc = 0; this.spinAng = 0;
       this.lastHands = null;
       // drape the towel from the hands before the first frame
       const pose = this.pose(0);
@@ -396,7 +405,7 @@
       if (S.grip === "corner") { out.push([cl.idx(0, 0), aR.hd]); out.push([cl.idx(1, 0), grip(aR, pose.qR ? pose.qR.pro * D2R : pose.twR)]); }
       else if (S.grip === "spread") { out.push([cl.idx(cl.cols - 1, 0), aR.hd]); if (pose.L) out.push([cl.idx(0, 0), aL.hd]); }
       else if (S.grip === "spin") { // centre and the ring around it turn with the fingers
-        const ci = (cl.cols - 1) / 2 | 0, cj = (cl.rows - 1) / 2 | 0, hub = add(aR.hd, v(0, 0.05, 0)), ang = TAU * (S.spin || 1.5) * this.t;
+        const ci = (cl.cols - 1) / 2 | 0, cj = (cl.rows - 1) / 2 | 0, hub = add(aR.hd, v(0, 0.05, 0)), ang = this.spinAng || 0;
         const step = cl.w / (cl.cols - 1);
         for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) { const x = dc * step, z = dr * step, ca = Math.cos(ang), sa = Math.sin(ang); out.push([cl.idx(ci + dc, cj + dr), add(hub, v(x * ca - z * sa, 0, x * sa + z * ca))]); }
       }
@@ -413,10 +422,12 @@
     }
     // slow motion slows everything: hands, gravity and air alike (one simulated clock); pause freezes it all
     step(dt, quiet) {
-      const sub_ = 4, sim = (quiet ? 1 : this.running ? this.speed : 0) * dt, h = sim / sub_;
+      // the towel always lives in real time (gravity and air don't slow down); "speed" only changes how fast the person moves
+      const sub_ = 4, sim = (quiet || this.running ? 1 : 0) * dt, h = sim / sub_, mv = this.freeze ? 0 : quiet ? 1 : this.speed;
       if (h <= 0) return;
       for (let s = 0; s < sub_; s++) {
-        this.t += h; this.phase = ((this.t * this.spec.tempo) % 1 + 1) % 1;
+        this.t += h; this.cyc = (this.cyc || 0) + h * this.spec.tempo * mv; this.phase = ((this.cyc % 1) + 1) % 1;
+        this.spinAng = (this.spinAng || 0) + h * TAU * (this.spec.spin || 1.5) * mv;
         const pose = this.pose(this.phase); this.lastPose = pose;
         const pins = this.pins(pose);
         this.cloth.step(h, pins, this.colliders(), 0.9995);
@@ -496,6 +507,7 @@
       const items = [];
       const T = L.lastPose.T, arms = L.arms;
       const seg = (a, b, w, color, z0) => { const A = P(a), Bp = P(b); items.push({ z: z0 ?? (A[2] + Bp[2]) / 2, draw: () => capsule(ctx, A, Bp, w, color) }); };
+      const tap = (a, b, w1, w2, z0) => { const A = P(a), Bp = P(b); items.push({ z: z0 ?? (A[2] + Bp[2]) / 2, draw: () => limb(ctx, A, Bp, w1, w2, COL.fur) }); };
       const ball = (c, r, color, z0) => { const C = P(c); items.push({ z: z0 ?? C[2], draw: () => { ctx.fillStyle = color; ctx.strokeStyle = COL.line; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(C[0], C[1], r * C[3], 0, TAU); ctx.fill(); ctx.stroke(); } }); };
       // legs (stable), torso, belly patch, arms, head
       for (const s of [1, -1]) {
@@ -508,9 +520,9 @@
       if (dot(fwd, toCam) > 0.05) { const a = add(T.f(v(0, B.hipY + 0.14, 0)), mul(fwd, 0.13)), b = add(T.f(v(0, B.shY - 0.16, 0)), mul(fwd, 0.13)); const z = Math.min(P(a)[2], P(b)[2]) - 0.01; seg(a, b, 0.17, COL.belly, z); }
       for (const [k, s] of [["R", 1], ["L", -1]]) {
         const a = arms[k];
-        seg(a.sh, a.el, 0.11, COL.fur);
-        if (a.wr) { seg(a.el, a.wr, 0.095, COL.fur); seg(a.wr, a.hd, 0.075, COL.fur); } else seg(a.el, a.hd, 0.1, COL.fur);
-        ball(a.hd, 0.055, COL.fur);
+        // human widths: upper arm ~10 cm at the shoulder, 7.5 at the elbow; forearm 7 → 5 at the wrist; the fist ~8 cm
+        const wr = a.wr || lerp(a.el, a.hd, 0.77);
+        tap(a.sh, a.el, 0.1, 0.075); tap(a.el, wr, 0.075, 0.05); tap(wr, a.hd, 0.055, 0.075);
       }
       const head = T.f(v(0, B.headY, 0)), hfwd = fwd, hup = T.dir(v(0, 1, 0)), hrt = norm(cross(hup, hfwd));
       seg(T.f(v(0, B.shY - 0.02, 0)), head, 0.12, COL.fur);
@@ -552,11 +564,97 @@
       for (const s of [1, -1]) { const e = on(s * 0.055, 0.03, 0.135); if (vis(e)) { const q_ = P(e); ctx.fillStyle = COL.line; ctx.beginPath(); ctx.arc(q_[0], q_[1], 0.014 * q * q_[3], 0, TAU); ctx.fill(); } }
     }
   }
+  // a limb that narrows: w1 at A, w2 at B (metres), outlined
+  function limb(ctx, A, Bp, w1, w2, color) {
+    const ra = w1 * A[3] / 2, rb = w2 * Bp[3] / 2, dx = Bp[0] - A[0], dy = Bp[1] - A[1], L = Math.hypot(dx, dy) || 1e-6, nx = -dy / L, ny = dx / L;
+    const path = () => { ctx.beginPath(); ctx.moveTo(A[0] + nx * ra, A[1] + ny * ra); ctx.lineTo(Bp[0] + nx * rb, Bp[1] + ny * rb); ctx.arc(Bp[0], Bp[1], rb, Math.atan2(ny, nx), Math.atan2(-ny, -nx), true); ctx.lineTo(A[0] - nx * ra, A[1] - ny * ra); ctx.arc(A[0], A[1], ra, Math.atan2(-ny, -nx), Math.atan2(ny, nx), true); ctx.closePath(); };
+    ctx.fillStyle = color; ctx.strokeStyle = COL.line; ctx.lineWidth = 2.2; path(); ctx.fill(); ctx.stroke();
+  }
   function capsule(ctx, A, Bp, w, color) {
     const wa = w * A[3], wb = w * Bp[3], wpx = (wa + wb) / 2;
     ctx.lineCap = "round";
     ctx.strokeStyle = COL.line; ctx.lineWidth = wpx + 4.5; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(Bp[0], Bp[1]); ctx.stroke();
     ctx.strokeStyle = color; ctx.lineWidth = wpx; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(Bp[0], Bp[1]); ctx.stroke();
+  }
+
+
+  // ---------- rhythm and resonance: the towel as a mechanical system ----------
+  // 1) pluck: hold the hands still, push the towel once, let it ring. The free motion is split into its shapes (modes) with an
+  //    SVD of the snapshots (proper orthogonal decomposition); each mode's ringing frequency is an eigenfrequency of the towel.
+  // 2) sweep: drive the same motion at 0.3 … 2 Hz and measure how much the free end of the towel moves for each cm of hand
+  //    motion (gain) and how far it lags (phase): a Bode plot. A peak in the gain is a resonance.
+  const tipOf = (cl) => { let s_ = [0, 0, 0]; for (let c = 0; c < cl.cols; c++) s_ = add(s_, cl.p[cl.idx(c, cl.rows - 1)]); return mul(s_, 1 / cl.cols); };
+  function domFreq(xs, dt, f0 = 0.15, f1 = 4) { // strongest frequency in a series (plain DFT scan)
+    const m = xs.reduce((a, b) => a + b, 0) / xs.length; let best = 0, bf = 0;
+    for (let f = f0; f <= f1; f += 0.01) { let sn = 0, cs = 0; xs.forEach((x, i) => { sn += (x - m) * Math.sin(TAU * f * i * dt); cs += (x - m) * Math.cos(TAU * f * i * dt); }); const a = Math.hypot(sn, cs); if (a > best) { best = a; bf = f; } }
+    return bf;
+  }
+  // top k right singular vectors of X (rows = coordinates, cols = moments) via the small moments×moments matrix
+  function pod(X, k = 3) {
+    const T = X[0].length, C = [...Array(T)].map(() => new Float64Array(T));
+    for (const row of X) for (let i = 0; i < T; i++) { const ri = row[i]; if (!ri) continue; for (let j = i; j < T; j++) C[i][j] += ri * row[j]; }
+    for (let i = 0; i < T; i++) for (let j = 0; j < i; j++) C[i][j] = C[j][i];
+    let total = 0; for (let i = 0; i < T; i++) total += C[i][i];
+    const modes = [];
+    for (let m = 0; m < k; m++) {
+      let v_ = Array.from({ length: T }, (_, i) => Math.sin(i * (m + 1.3)) + 0.1), lam = 0;
+      for (let it = 0; it < 120; it++) {
+        const w = C.map((row) => row.reduce((s_, c, j) => s_ + c * v_[j], 0));
+        for (const md of modes) { const d = md.v.reduce((s_, x, i) => s_ + x * w[i], 0); for (let i = 0; i < T; i++) w[i] -= d * md.v[i]; }
+        const n = Math.hypot(...w) || 1; lam = n; v_ = w.map((x) => x / n);
+      }
+      modes.push({ v: v_, share: lam / (total || 1) });
+    }
+    return modes;
+  }
+  function freshLab(spec) { const L2 = new Lab(); L2.spec = clone(spec); L2.spec.J = clone(spec.J); L2.reset(); return L2; }
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  async function pluck(spec, report) {
+    const L2 = freshLab(spec), dt = 1 / 60; L2.freeze = true;
+    for (let i = 0; i < 90; i++) L2.step(dt, true); // settle
+    const cl = L2.cloth, kick = norm(cross(sub(tipOf(cl), L2.arms.R.hd), v(0, 1, 0))), push = len(kick) > 0.1 ? kick : v(1, 0, 0);
+    cl.p.forEach((p, i) => { const r = len(sub(p, L2.arms.R.hd)); cl.q[i] = sub(p, mul(push, 0.6 * r * dt)); });
+    const snaps = [], tipx = [], T = 8, hd = L2.arms.R.hd;
+    for (let i = 0; i < T / dt; i++) { L2.step(dt, true); if (i % 2 === 0) { snaps.push(cl.p.map((p) => sub(p, hd))); tipx.push(dot(sub(tipOf(cl), hd), push)); } if (i % 60 === 0) { report && report(i * dt / T * 0.3); await tick(); } }
+    const n = snaps[0].length, mean = [...Array(n)].map((_, j) => mul(snaps.reduce((s_, q) => add(s_, q[j]), [0, 0, 0]), 1 / snaps.length));
+    const X = []; for (let j = 0; j < n; j++) for (let c = 0; c < 3; c++) X.push(snaps.map((q) => q[j][c] - mean[j][c]));
+    const modes = pod(X, 3).map((m) => ({ share: m.share, f: domFreq(m.v, 2 * dt, 0.15, 5) }));
+    const Lhang = Math.max(...cl.p.map((p) => hd[1] - p[1]));
+    return { modes, f1: domFreq(tipx, 2 * dt), chain: 0.599 / Math.sqrt(Math.max(0.2, Lhang)), Lhang };
+  }
+  async function sweep(spec, report) {
+    const out = [], fs = []; for (let f = 0.3; f <= 2.01; f += 0.1) fs.push(+f.toFixed(2));
+    for (let k = 0; k < fs.length; k++) {
+      const f = fs[k], sp = clone(spec); sp.J = clone(spec.J); sp.tempo = f;
+      const L2 = freshLab(sp), dt = 1 / 60, settle = Math.max(1.5, 1.5 / f), meas = Math.max(2, 3 / f);
+      for (let t = 0; t < settle; t += dt) L2.step(dt, true);
+      const H = [[0, 0], [0, 0], [0, 0]], P = [[0, 0], [0, 0], [0, 0]]; let air = 0, nA = 0, t0 = L2.t;
+      for (let t = 0; t < meas; t += dt) {
+        L2.step(dt, true); L2.measure(dt); const th = TAU * f * (L2.t - t0), hd = L2.arms.R.hd, tp = tipOf(L2.cloth);
+        for (let c = 0; c < 3; c++) { H[c][0] += hd[c] * Math.cos(th); H[c][1] += hd[c] * Math.sin(th); P[c][0] += tp[c] * Math.cos(th); P[c][1] += tp[c] * Math.sin(th); }
+        air += L2.meter.air; nA++;
+      }
+      const amp = (Z) => Math.sqrt(Z.reduce((s_, z) => s_ + z[0] * z[0] + z[1] * z[1], 0));
+      let re = 0, im = 0; for (let c = 0; c < 3; c++) { re += H[c][0] * P[c][0] + H[c][1] * P[c][1]; im += H[c][0] * P[c][1] - H[c][1] * P[c][0]; }
+      out.push({ f, gain: amp(P) / (amp(H) || 1e-9), phase: Math.atan2(im, re) / D2R, air: air / nA });
+      report && report(0.3 + 0.7 * (k + 1) / fs.length); await tick();
+    }
+    return out;
+  }
+  function drawBode(cv, data, mark, eig) {
+    const dpr = devicePixelRatio || 1, W = cv.clientWidth, Hh = cv.clientHeight; cv.width = W * dpr; cv.height = Hh * dpr;
+    const g = cv.getContext("2d"); g.scale(dpr, dpr); g.clearRect(0, 0, W, Hh);
+    const css = getComputedStyle(document.documentElement), ink = css.getPropertyValue("--ink") || "#333", mut = css.getPropertyValue("--muted") || "#888", wood = css.getPropertyValue("--wood") || "#b5763f", cool = css.getPropertyValue("--cool") || "#3f6f80", ember = css.getPropertyValue("--ember") || "#c0471f";
+    const L = 34, Rr = 10, T = 10, B = 26, x = (f) => L + (f - 0.3) / 1.7 * (W - L - Rr);
+    const gmax = Math.max(1.2, ...data.map((d) => d.gain)) * 1.1, amax = Math.max(0.05, ...data.map((d) => d.air)) * 1.1;
+    const y = (v_, m) => T + (1 - v_ / m) * (Hh - T - B);
+    g.font = "11px system-ui"; g.fillStyle = mut; g.strokeStyle = "rgba(128,128,128,.25)"; g.lineWidth = 1;
+    for (let f = 0.5; f <= 2; f += 0.5) { g.beginPath(); g.moveTo(x(f), T); g.lineTo(x(f), Hh - B); g.stroke(); g.fillText(f.toFixed(1) + " Hz", x(f) - 14, Hh - 8); }
+    if (eig) { g.strokeStyle = cool; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(x(eig), T); g.lineTo(x(eig), Hh - B); g.stroke(); g.setLineDash([]); }
+    if (mark) { g.strokeStyle = ember; g.lineWidth = 2; g.beginPath(); g.moveTo(x(mark), T); g.lineTo(x(mark), Hh - B); g.stroke(); }
+    const line = (key, m, col, wdt) => { g.strokeStyle = col; g.lineWidth = wdt; g.beginPath(); data.forEach((d, i) => (i ? g.lineTo : g.moveTo).call(g, x(d.f), y(d[key], m))); g.stroke(); data.forEach((d) => { g.fillStyle = col; g.beginPath(); g.arc(x(d.f), y(d[key], m), 2.5, 0, TAU); g.fill(); }); };
+    line("air", amax, wood, 1.5); line("gain", gmax, ink, 2.5);
+    g.fillStyle = ink; g.fillText(tr("towel end ÷ hand", "Tuchende ÷ Hand"), L, T + 10); g.fillStyle = wood; g.fillText(tr("air moved", "bewegte Luft"), L + 110, T + 10);
   }
 
   // ---------- recording: one loop → keyframes for the app ----------
@@ -569,7 +667,7 @@
       keys.push([+ph.toFixed(4), r3(R), L ? r3(L) : null]);
     }
     const g = lab.spec.grip === "edge" ? "vertical" : lab.spec.grip;
-    return { kind: "keys", grip: g, speed: +lab.spec.tempo.toFixed(3), cloth: [TOWELS[lab.spec.towel][2], TOWELS[lab.spec.towel][3]], source: "Towel lab recording", keys };
+    return { kind: "keys", grip: g, speed: +lab.spec.tempo.toFixed(3), cloth: [towelOf(lab.spec.towel)[2], towelOf(lab.spec.towel)[3]], source: "Towel lab recording", keys };
   }
 
   // keyframes → adjustable loop: per axis keep the mean and the strongest of the first two harmonics
@@ -621,7 +719,7 @@
     lab.presetId = id; lab.nudge = { R: [0, 0, 0], L: [0, 0, 0] };
     if (id.startsWith("t:")) {
       const t = techniques.find((x) => "t:" + x.id === id), d = t.demo;
-      const towel = d.cloth ? (d.cloth[0] > 1.2 ? "big" : "open") : d.grip === "corner" ? "strip" : "open";
+      const towel = d.cloth ? (d.cloth[0] > 1.2 ? "open" : "wide") : d.grip === "corner" ? "long" : "wide";
       lab.spec = Object.assign(clone(PRESETS.flag), { grip: d.grip === "vertical" ? "edge" : d.grip, towel, tempo: d.speed || 0.6, Lmode: "own", torso: { tw: 0, tp: 0, le: 0, lp: 0, be: 0, bp: 0 } });
       lab.spec.keys = d.keys; lab.spec.path = keysPath(d.keys); lab.spec.clip = t.clip; lab.spec.name = t.name[lang] || t.name.en;
     } else if (id.startsWith("s:")) {
@@ -635,13 +733,14 @@
   // slider: [label, path, min, max, step, unit]
   let CTL = [];
   function simpleList() {
-    const S = lab.spec, out = [[tr("Tempo (loops per second)", "Tempo (Schleifen pro Sekunde)"), ["", "tempo", null], 0.2, 2.5, 0.05, "/s"],
+    const S = lab.spec, out = [[tr("Rhythm: loops per second (Hz)", "Rhythmus: Schleifen pro Sekunde (Hz)"), ["", "tempo", null], 0.2, 2.5, 0.05, " Hz"],
       [tr("Size of the movement", "Größe der Bewegung"), ["", "size", null], 0, 1.6, 0.05, "×"],
       [tr("Slow back, fast forward", "Langsam zurück, schnell vor"), ["", "asym", null], 0, 0.85, 0.05, ""],
       [tr("Moment of the hit (in the loop)", "Moment des Schlags (in der Schleife)"), ["", "hit", null], 0, 1, 0.05, ""]];
     if (S.grip === "spread" || S.grip === "edge") out.push([tr("Pull the hands apart at the hit", "Hände beim Schlag auseinanderziehen"), ["", "tension", null], 0, 0.15, 0.01, "m"]);
     if (S.grip === "spin") out.push([tr("Spin (turns per second)", "Drehung (Umdrehungen pro Sekunde)"), ["", "spin", null], 0, 4, 0.1, "/s"]);
     out.push([tr("Body follows the hands", "Körper folgt den Händen"), ["", "follow", null], 0, 25, 1, "°"]);
+    out.push([tr("Towel weight (whole towel, dry ≈ 400 g)", "Tuchgewicht (ganzes Tuch, trocken ≈ 400 g)"), ["", "grams", null], 200, 900, 25, " g"]);
     return out;
   }
   const jointRows = (side, k) => { const [, lo, hi] = JOINTS.find((j) => j[0] === k), h = `J.${side}.${k}`; return [
@@ -664,7 +763,7 @@
   }
   const bodyList = () => [[tr("Body twist", "Oberkörper drehen"), ["torso", "tw", null], 0, 40, 1, "°"], [tr("Body twist timing", "Drehen Timing"), ["torso", "tp", null], -180, 180, 5, "°"],
     [tr("Side lean", "Seitneigung"), ["torso", "le", null], 0, 20, 1, "°"], [tr("Forward bend", "Vorbeuge"), ["torso", "be", null], 0, 25, 1, "°"], [tr("Bend timing", "Beugen Timing"), ["torso", "bp", null], -180, 180, 5, "°"]];
-  const DEFV = { asym: 0, hit: 0, tension: 0, spin: 1.5, follow: 10, size: 1 };
+  const DEFV = { asym: 0, hit: 0, tension: 0, spin: 1.5, follow: 10, size: 1, grams: 400 };
   function getV(path) { const v_ = getP(lab.spec, path); return v_ == null ? DEFV[path[1]] ?? 0 : v_; }
   function setV(path, val) { setP(lab.spec, path, val); }
   const fmt = (x, step) => (step >= 1 ? Math.round(x) : x.toFixed(2));
@@ -691,6 +790,7 @@
     document.querySelectorAll("#sliders input").forEach((el) => (el.oninput = () => {
       const [, path, , , step, unit] = CTL[+el.dataset.i]; setV(path, +el.value); $("#o" + el.dataset.i).textContent = fmt(+el.value, step) + unit;
       if (path[0] === "R" || path[0] === "L") lab.toJoints();
+      if (path[1] === "grams") lab.cloth.areal = +el.value / 1000 / 1.5;
       jointRanges();
     }));
     document.querySelectorAll(".jrow").forEach((b) => (b.onclick = () => { openJ = openJ === b.dataset.j ? null : b.dataset.j; buildControls(); }));
@@ -718,7 +818,7 @@
   function syncClip() {
     const box = $("#clipbox"), clip = lab.spec.clip || (techniques.find((t) => t.clip && lab.presetId === "flag" && t.id === "flag") || {}).clip;
     box.innerHTML = clip ? `<button id="clipgo">${tr("Show the tutorial next to it", "Tutorial daneben zeigen")}</button> <span class="hint">${clip.credit || ""}</span>` : `<span class="hint">${tr("Choose a technique from the tutorials to see its video here.", "Wähle eine Technik aus den Tutorials, um hier ihr Video zu sehen.")}</span>`;
-    if (clip) $("#clipgo").onclick = () => { box.innerHTML = `<div id="clipv" class="clipv"></div><div class="row"><button data-rate="0.25">0.25×</button><button data-rate="0.5">0.5×</button><button data-rate="1">1×</button></div>`; window.AufgussClip && window.AufgussClip.loop($("#clipv"), clip, { rate: 1 }).then((pl) => { box.querySelectorAll("[data-rate]").forEach((b) => (b.onclick = () => { pl && pl.setRate(+b.dataset.rate); lab.speed = +b.dataset.rate; $("#slow").value = lab.speed; })); }); };
+    if (clip) $("#clipgo").onclick = () => { box.innerHTML = `<div id="clipv" class="clipv"></div><div class="row"><button data-rate="0.25">0.25×</button><button data-rate="0.5">0.5×</button><button data-rate="1">1×</button></div>`; window.AufgussClip && window.AufgussClip.loop($("#clipv"), clip, { rate: 1 }).then((pl) => { box.querySelectorAll("[data-rate]").forEach((b) => (b.onclick = () => { pl && pl.setRate(+b.dataset.rate); })); }); };
   }
 
   // keyboard: live hands. Right hand W A S D (Q/E forward/back), left hand I J K L (U/O). Arrows turn the camera.
@@ -780,7 +880,7 @@
       buildControls(); lab.reset();
     };
     $("#play").onclick = () => { lab.running = !lab.running; $("#play").textContent = lab.running ? "⏸" : "▶"; };
-    $("#slow").oninput = (e) => (lab.speed = +e.target.value);
+    $("#slow").oninput = (e) => { lab.speed = +e.target.value; $("#slowO").textContent = lab.speed.toFixed(2).replace(/0$/, "") + "×"; };
     $("#restart").onclick = () => lab.reset();
     document.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { const [y, p] = b.dataset.view.split(",").map(Number); lab.cam.yaw = y; lab.cam.pitch = p; }));
     $("#air").onchange = (e) => (view.showAir = e.target.checked);
@@ -798,6 +898,20 @@
       lab.spec.R = R; if (L) { lab.spec.L = L; lab.spec.Lmode = "own"; } else lab.spec.Lmode = "rest";
       delete lab.spec.path; delete lab.spec.keys; buildControls();
       $("#out").textContent = tr("Now every slider works. The loop is smoother than the keyframes; nudge it back where it matters.", "Jetzt wirken alle Regler. Die Schleife ist glatter als die Keyframes; schieb sie dort zurecht, wo es zählt.");
+    };
+    $("#analyse").onclick = async () => {
+      const btn = $("#analyse"), info = $("#resinfo"), cv = $("#bode"); btn.disabled = true;
+      const rep = (x) => (btn.textContent = tr(`Measuring … ${Math.round(x * 100)}%`, `Messe … ${Math.round(x * 100)} %`));
+      try {
+        const spec = lab.spec, pl = await pluck(spec, rep), sw = await sweep(spec, rep);
+        const top = sw.reduce((a, b) => (b.gain > a.gain ? b : a)), cur = spec.tempo * lab.speed, nf = (x) => (lang === "de" ? x.toFixed(2).replace(".", ",") : x.toFixed(2));
+        cv.hidden = false; drawBode(cv, sw, cur, pl.f1);
+        const ms = pl.modes.map((m, i) => tr(`shape ${i + 1}: ${Math.round(m.share * 100)}% of the motion, rings at ${nf(m.f)} Hz`, `Form ${i + 1}: ${Math.round(m.share * 100)} % der Bewegung, schwingt mit ${nf(m.f)} Hz`)).join("<br>");
+        info.innerHTML = tr(
+          `<b>Own rhythm (pluck test): ${nf(pl.f1)} Hz.</b> A hanging chain of ${Math.round(pl.Lhang * 100)} cm would swing at ${nf(pl.chain)} Hz.<br>${ms}<br><b>Strongest answer when driven: ${nf(top.f)} Hz</b> (the free end moves ${top.gain.toFixed(1)}× as far as the hand). You are at ${nf(cur)} Hz (red line); dashed: own rhythm.`,
+          `<b>Eigenrhythmus (Anzupf-Test): ${nf(pl.f1)} Hz.</b> Eine hängende Kette von ${Math.round(pl.Lhang * 100)} cm schwänge mit ${nf(pl.chain)} Hz.<br>${ms}<br><b>Stärkste Antwort beim Antreiben: ${nf(top.f)} Hz</b> (das freie Ende bewegt sich ${top.gain.toFixed(1).replace(".", ",")}-mal so weit wie die Hand). Du bist bei ${nf(cur)} Hz (rote Linie); gestrichelt: Eigenrhythmus.`);
+      } catch (e) { info.textContent = String(e); }
+      btn.disabled = false; btn.textContent = tr("Measure again", "Nochmal messen");
     };
     $("#zero").onclick = () => { lab.nudge = { R: [0, 0, 0], L: [0, 0, 0] }; refreshSliders(); };
     $("#explore").onclick = () => {
@@ -826,7 +940,9 @@
 
   // meters
   function meters() {
-    const m = lab.meter;
+    const m = lab.meter, hz = lab.spec.tempo * lab.speed;
+    $("#mHz").textContent = (lang === "de" ? hz.toFixed(2).replace(".", ",") : hz.toFixed(2)) + " Hz";
+    $("#mHzInfo").textContent = tr(`one loop in ${(1 / hz).toFixed(2)} s`, `eine Schleife in ${(1 / hz).toFixed(2).replace(".", ",")} s`);
     $("#mAir").textContent = m.air.toFixed(2); $("#mOpen").textContent = Math.round(clamp(m.open, 0, 1) * 100) + "%"; $("#mHand").textContent = m.hand.toFixed(1);
     const sp = m.spin || 0; $("#mSpin").textContent = sp > 0.15 ? `${sp.toFixed(1)}/s` : "–";
     $("#mSpinInfo").textContent = sp > 0.15 ? tr(`needs ≥ ${m.need.toFixed(1)}/s to stay flat · hangs ${Math.round(m.droop)}°`, `braucht ≥ ${m.need.toFixed(1).replace(".", ",")}/s, um flach zu bleiben · hängt ${Math.round(m.droop)}°`) : tr("not spinning", "dreht nicht");
@@ -849,7 +965,6 @@
     if (map[kind]) { loadPreset(map[kind]); lab.spec.clip = t.clip; syncClip(); $("#preset").value = map[kind]; }
   }
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reduce) { lab.speed = 0.5; $("#slow").value = 0.5; }
   let last = performance.now(), acc = 0, fc = 0;
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;

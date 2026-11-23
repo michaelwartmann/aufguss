@@ -29,7 +29,7 @@
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
   .card h2 { font-size: 1.02rem; margin: 0 0 8px; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .meters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
   .meter b { display: block; font-size: 1.2rem; }
   .meter small { color: var(--muted); }
   .meter i { display: block; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 4px; }
@@ -69,8 +69,8 @@
     <canvas id="stage" tabindex="0" aria-label="3D figure waving a towel. Drag to turn the view; keys move the hands."></canvas>
     <div class="bar">
       <button id="play" aria-label="Pause or play">⏸</button>
-      <label class="hint" for="slow" data-en="Slow motion" data-de="Zeitlupe">Slow motion</label>
-      <input id="slow" type="range" min="0.1" max="1" step="0.05" value="1" style="width:110px">
+      <label class="hint" for="slow" data-en="Speed of the person" data-de="Tempo der Person">Speed of the person</label>
+      <input id="slow" type="range" min="0.25" max="1.5" step="0.05" value="1" style="width:110px"> <output id="slowO" class="hint">1×</output>
       <button data-view="0,0.15" data-en="Front" data-de="Vorne">Front</button>
       <button data-view="1.5708,0.12" data-en="Side" data-de="Seite">Side</button>
       <button data-view="-0.6,1.25" data-en="Top" data-de="Oben">Top</button>
@@ -79,6 +79,7 @@
     <div class="bar meters">
       <div class="meter"><small data-en="Air moved, m³/s" data-de="Bewegte Luft, m³/s">Air moved, m³/s</small><b id="mAir">0</b><i><span id="bAir"></span></i></div>
       <div class="meter"><small data-en="Towel open" data-de="Tuch offen">Towel open</small><b id="mOpen">0</b><i><span id="bOpen"></span></i></div>
+      <div class="meter"><small data-en="Rhythm" data-de="Rhythmus">Rhythm</small><b id="mHz">–</b><small id="mHzInfo"></small></div>
       <div class="meter"><small data-en="Hand speed, m/s" data-de="Handtempo, m/s">Hand speed, m/s</small><b id="mHand">0</b><i><span id="bHand"></span></i></div>
     </div>
     <div class="bar"><div class="meter" style="flex:1"><small data-en="Towel spin, turns per second" data-de="Tuchdrehung, Umdrehungen pro Sekunde">Spin</small> <b id="mSpin" style="display:inline">–</b> <small id="mSpinInfo"></small><i><span id="bSpin"></span></i></div></div>
@@ -98,11 +99,11 @@
           <option value="spin" data-en="Spun on the fingers (pizza)" data-de="Auf den Fingern gedreht (Pizza)">Spun on the fingers</option>
         </select>
         <select id="towel" aria-label="Towel">
-          <option value="strip" data-en="Folded strip 37×100" data-de="Gefaltet 37×100">Folded strip</option>
-          <option value="short" data-en="Folded short 38×70" data-de="Gefaltet kurz 38×70">Folded short</option>
-          <option value="open" data-en="Open 100×70" data-de="Offen 100×70">Open</option>
-          <option value="square" data-en="Square 75×75" data-de="Quadrat 75×75">Square</option>
-          <option value="big" data-en="Big 150×100" data-de="Groß 150×100">Big</option>
+          <option value="open" data-en="Open 150×100" data-de="Offen 150×100">Open 150×100</option>
+          <option value="wide" data-en="Folded once, long edge 100×75" data-de="Einmal gefaltet, lange Kante 100×75">Folded once 100×75</option>
+          <option value="long" data-en="Folded once, by a corner 75×100" data-de="Einmal gefaltet, an der Ecke 75×100">Folded once 75×100</option>
+          <option value="quarter" data-en="Folded twice 75×50" data-de="Zweimal gefaltet 75×50">Folded twice 75×50</option>
+          <option value="strip" data-en="Folded lengthwise 37×100" data-de="Längs gefaltet 37×100">Strip 37×100</option>
         </select>
         <select id="lmode" aria-label="Left hand">
           <option value="join" data-en="Left hand helps (same grip)" data-de="Linke Hand hilft (gleicher Griff)">Left helps</option>
@@ -128,6 +129,13 @@
       </div>
     </section>
 
+    <section class="card">
+      <h2 data-en="Rhythm and resonance" data-de="Rhythmus und Resonanz">Rhythm and resonance</h2>
+      <p class="hint" data-en="Is there a rhythm the towel likes? First the hands stand still and the towel is pushed once: its own swinging rhythm. Then the same movement is run from 0.3 to 2 loops per second and the lab measures how far the free end of the towel moves for each centimetre of hand movement." data-de="Gibt es einen Rhythmus, den das Tuch mag? Erst stehen die Hände still und das Tuch wird einmal angestoßen: sein eigener Schwingrhythmus. Dann läuft dieselbe Bewegung von 0,3 bis 2 Schleifen pro Sekunde, und das Labor misst, wie weit sich das freie Tuchende pro Zentimeter Handbewegung bewegt."></p>
+      <button id="analyse" class="primary" data-en="Measure (under a minute)" data-de="Messen (unter einer Minute)">Measure</button>
+      <canvas id="bode" hidden style="width:100%;height:170px;display:block;margin-top:8px" aria-label="Gain of the towel end against the rhythm"></canvas>
+      <p id="resinfo" class="hint" aria-live="polite"></p>
+    </section>
     <section class="card">
       <h2 data-en="Compare with the tutorial" data-de="Mit dem Tutorial vergleichen">Compare with the tutorial</h2>
       <div id="clipbox"></div>
