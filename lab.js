@@ -23,7 +23,8 @@
   };
 
   // ---------- body (metres; y up; the figure faces +z, towards the default camera) ----------
-  const B = { hipY: 0.95, shY: 1.42, shX: 0.19, upper: 0.30, fore: 0.33, neckY: 1.52, headY: 1.70, headR: 0.15, hipX: 0.1, thigh: 0.45, shin: 0.47 };
+  // human proportions for 1.80 m (Drillis & Contini): shoulder 1.47, upper arm 0.335, forearm to grip 0.355, head Ø ≈ 0.24
+  const B = { hipY: 0.95, shY: 1.47, shX: 0.19, upper: 0.335, fore: 0.355, neckY: 1.55, headY: 1.69, headR: 0.12, hipX: 0.1, thigh: 0.44, shin: 0.47 };
   const REACH = B.upper + B.fore - 0.005;
 
   // rotation of the torso about the hip: twist (y), lean (sideways, z axis), bend (forwards, x axis)
@@ -41,8 +42,8 @@
   const hand = (o) => Object.assign({ c: [0.25, 1.4, 0.3], a: [0, 0, 0], f: [1, 1, 1], p: [0, 90, 0], tw: 0, tp: 0, t0: 0 }, o);
   const PRESETS = {
     // as in the Aufguss.it Helicopter tutorial: both hands together just above the head, small circle, ~1.1 turns/s at video speed
-    propeller: { name: ["Propeller", "Propeller"], grip: "corner", towel: "short", tempo: 1.1,
-      R: hand({ c: [0.02, 1.97, 0.06], a: [0.13, 0, 0.13], f: [1, 0, 1], p: [0, 0, 90], tw: 0 }), Lmode: "join", L: hand({}), torso: { tw: 4, tp: 0, le: 0, lp: 0, be: 0, bp: 0 } },
+    propeller: { name: ["Propeller", "Propeller"], grip: "corner", towel: "short", tempo: 1.1, asym: 0.45, hit: 0.25,
+      R: hand({ c: [0.02, 2.0, 0.06], a: [0.13, 0.04, 0.13], f: [1, 1, 1], p: [0, -90, 90], tw: 0 }), Lmode: "join", L: hand({}), torso: { tw: 4, tp: 0, le: 0, lp: 0, be: 0, bp: 0 } },
     flag: { name: ["Side flag", "Seitliche Fahne"], grip: "edge", towel: "open", tempo: 0.6,
       R: hand({ c: [0.3, 1.97, 0.18], a: [0.17, 0.03, 0.06], f: [1, 2, 1], p: [0, 90, 90] }), Lmode: "own",
       L: hand({ c: [-0.12, 1.02, 0.3], a: [0.4, 0.03, 0.06], f: [1, 2, 1], p: [0, 90, 90] }), torso: { tw: 10, tp: 0, le: 6, lp: 0, be: 0, bp: 0 } },
@@ -85,9 +86,9 @@
         if (c < cols - 1) link(i, this.idx(c + 1, r), 1);
         if (r < rows - 1) link(i, this.idx(c, r + 1), 1);
         if (c < cols - 1 && r < rows - 1) { link(i, this.idx(c + 1, r + 1), 1); link(this.idx(c + 1, r), this.idx(c, r + 1), 1); }
-        if (c < cols - 2) link(i, this.idx(c + 2, r), 0.6);
-        if (r < rows - 2) link(i, this.idx(c, r + 2), 0.6);
-        if (c < cols - 2 && r < rows - 2) { link(i, this.idx(c + 2, r + 2), 0.3); link(this.idx(c + 2, r), this.idx(c, r + 2), 0.3); }
+        if (c < cols - 2) link(i, this.idx(c + 2, r), 0.45);
+        if (r < rows - 2) link(i, this.idx(c, r + 2), 0.45);
+        if (c < cols - 2 && r < rows - 2) { link(i, this.idx(c + 2, r + 2), 0.2); link(this.idx(c + 2, r), this.idx(c, r + 2), 0.2); }
       }
       this.prev = this.p.map((x) => x.slice());
     }
@@ -97,7 +98,7 @@
     // a little internal damping (terry cloth doesn't ring like silk), stiff links.
     step(dt, pins, colliders, drag) {
       const pinned = new Map(pins), n = this.p.length, cols = this.cols, rows = this.rows;
-      const AREAL = 0.6, RHO = 0.95, CD = 1.2, CF = 0.06; // kg/m² (damp terry), hot air kg/m³, flat-plate drag, skin friction
+      const AREAL = this.areal ?? 0.35, RHO = 0.95, CD = 1.2, CF = 0.06; // kg/m² (damp, not soaked terry), hot air kg/m³, flat-plate drag, skin friction
       const mNode = AREAL * this.w * this.h / n;
       const vel = this.p.map((p, i) => sub(p, this.q[i])); // per step
       // air: per quad, the velocity of the patch against still air, split into normal and tangential parts
@@ -118,7 +119,7 @@
         vel[i] = add(mul(v0, drag), dv);
       }
       // internal damping: each point's velocity leans a little towards its neighbours' (removes ringing, keeps waves)
-      const damp = 0.08, sm = vel.map((v_, i) => {
+      const damp = 0.05, sm = vel.map((v_, i) => {
         const c = i % cols, r = (i / cols) | 0; let s_ = [0, 0, 0], k = 0;
         for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const cc = c + dc, rr = r + dr; if (cc >= 0 && cc < cols && rr >= 0 && rr < rows) { s_ = add(s_, vel[this.idx(cc, rr)]); k++; } }
         return add(mul(v_, 1 - damp), mul(s_, damp / k));
@@ -383,18 +384,18 @@
       if (this.showAir) for (const q of L.particles) { const s = P(q.p); ctx.fillStyle = `rgba(${COL.air.join(",")},${(q.life * 0.55).toFixed(3)})`; ctx.beginPath(); ctx.arc(s[0], s[1], clamp(0.012 * s[3] * (1.8 - q.life), 1.5, 5), 0, TAU); ctx.fill(); }
     }
     head(c, fw, up, rt) {
-      const ctx = this.ctx, P = this.P, C = P(c), R = B.headR * C[3];
+      const ctx = this.ctx, P = this.P, C = P(c), R = B.headR * C[3], q = B.headR / 0.15; // features scale with the head
       const vis = (p) => dot(sub(p, c), sub(this.eye, c)) > 0;
       // ears first if they are behind the head
-      const ears = [1, -1].map((s) => add(c, add(mul(rt, s * 0.11), add(mul(up, 0.11), mul(fw, -0.01)))));
-      const ear = (e) => { const s = P(e); ctx.fillStyle = COL.fur; ctx.strokeStyle = COL.line; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(s[0], s[1], 0.05 * s[3], 0, TAU); ctx.fill(); ctx.stroke(); };
+      const ears = [1, -1].map((s) => add(c, add(mul(rt, s * 0.11 * q), add(mul(up, 0.11 * q), mul(fw, -0.01)))));
+      const ear = (e) => { const s = P(e); ctx.fillStyle = COL.fur; ctx.strokeStyle = COL.line; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(s[0], s[1], 0.05 * q * s[3], 0, TAU); ctx.fill(); ctx.stroke(); };
       ears.filter((e) => !vis(e)).forEach(ear);
       ctx.fillStyle = COL.fur; ctx.strokeStyle = COL.line; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(C[0], C[1], R, 0, TAU); ctx.fill(); ctx.stroke();
       ears.filter(vis).forEach(ear);
-      const on = (x, y, z) => add(c, add(add(mul(rt, x), mul(up, y)), mul(fw, z)));
+      const on = (x, y, z) => add(c, add(add(mul(rt, x * q), mul(up, y * q)), mul(fw, z * q)));
       const muz = on(0, -0.04, 0.12);
-      if (vis(muz)) { const s = P(muz); ctx.fillStyle = COL.belly; ctx.beginPath(); ctx.ellipse(s[0], s[1], 0.055 * s[3], 0.04 * s[3], 0, 0, TAU); ctx.fill(); const n = P(on(0, -0.02, 0.15)); ctx.fillStyle = COL.line; ctx.beginPath(); ctx.arc(n[0], n[1], 0.014 * n[3], 0, TAU); ctx.fill(); }
-      for (const s of [1, -1]) { const e = on(s * 0.055, 0.03, 0.135); if (vis(e)) { const q = P(e); ctx.fillStyle = COL.line; ctx.beginPath(); ctx.arc(q[0], q[1], 0.014 * q[3], 0, TAU); ctx.fill(); } }
+      if (vis(muz)) { const s = P(muz); ctx.fillStyle = COL.belly; ctx.beginPath(); ctx.ellipse(s[0], s[1], 0.055 * q * s[3], 0.04 * q * s[3], 0, 0, TAU); ctx.fill(); const n = P(on(0, -0.02, 0.15)); ctx.fillStyle = COL.line; ctx.beginPath(); ctx.arc(n[0], n[1], 0.014 * q * n[3], 0, TAU); ctx.fill(); }
+      for (const s of [1, -1]) { const e = on(s * 0.055, 0.03, 0.135); if (vis(e)) { const q_ = P(e); ctx.fillStyle = COL.line; ctx.beginPath(); ctx.arc(q_[0], q_[1], 0.014 * q * q_[3], 0, TAU); ctx.fill(); } }
     }
   }
   function capsule(ctx, A, Bp, w, color) {

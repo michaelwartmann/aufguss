@@ -37,9 +37,9 @@
         if (c < cols - 1) link(idx(c, r), idx(c + 1, r));
         if (r < rows - 1) link(idx(c, r), idx(c, r + 1));
         if (c < cols - 1 && r < rows - 1) { link(idx(c, r), idx(c + 1, r + 1)); link(idx(c + 1, r), idx(c, r + 1)); }
-        if (c < cols - 2) link(idx(c, r), idx(c + 2, r), 0.6);  // bending: terry is fairly stiff
-        if (r < rows - 2) link(idx(c, r), idx(c, r + 2), 0.6);
-        if (c < cols - 2 && r < rows - 2) { link(idx(c, r), idx(c + 2, r + 2), 0.3); link(idx(c + 2, r), idx(c, r + 2), 0.3); }
+        if (c < cols - 2) link(idx(c, r), idx(c + 2, r), 0.45);  // bending: terry, soft but not silk
+        if (r < rows - 2) link(idx(c, r), idx(c, r + 2), 0.45);
+        if (c < cols - 2 && r < rows - 2) { link(idx(c, r), idx(c + 2, r + 2), 0.2); link(idx(c + 2, r), idx(c, r + 2), 0.2); }
       }
     }
     place(fn) { // put every point somewhere sensible before the first frame
@@ -47,7 +47,7 @@
     }
     // same towel physics as the towel lab: gravity, air resistance per patch, a little internal damping
     step(dt, drag) {
-      const n = this.p.length, cols = this.cols, rows = this.rows, mNode = 0.6 * this.w * this.h / n;
+      const n = this.p.length, cols = this.cols, rows = this.rows, mNode = 0.35 * this.w * this.h / n;
       const vel = this.p.map((p, i) => sub(p, this.q[i])), acc = this.p.map(() => [0, G, 0]);
       for (let r = 0; r < rows - 1; r++) for (let c = 0; c < cols - 1; c++) {
         const ids = [this.idx(c, r), this.idx(c + 1, r), this.idx(c + 1, r + 1), this.idx(c, r + 1)], P = ids.map((i) => this.p[i]);
@@ -66,7 +66,7 @@
         if (this.pin.has(i)) continue;
         const c = i % cols, r = (i / cols) | 0; let s_ = [0, 0, 0], k = 0;
         for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const cc = c + dc, rr = r + dr; if (cc >= 0 && cc < cols && rr >= 0 && rr < rows) { s_ = add(s_, vel[this.idx(cc, rr)]); k++; } }
-        const vv = add(mul(vel[i], 0.92), mul(s_, 0.08 / k));
+        const vv = add(mul(vel[i], 0.95), mul(s_, 0.05 / k));
         this.q[i] = this.p[i].slice(); this.p[i] = add(this.p[i], vv);
       }
       for (let it = 0; it < 12; it++) {
