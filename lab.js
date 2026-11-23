@@ -40,8 +40,9 @@
   // tw = wrist twist amplitude (deg), tp = its phase, t0 = resting wrist angle.
   const hand = (o) => Object.assign({ c: [0.25, 1.4, 0.3], a: [0, 0, 0], f: [1, 1, 1], p: [0, 90, 0], tw: 0, tp: 0, t0: 0 }, o);
   const PRESETS = {
-    propeller: { name: ["Propeller", "Propeller"], grip: "corner", towel: "strip", tempo: 2.1,
-      R: hand({ c: [0.08, 1.98, 0.12], a: [0.3, 0, 0.3], f: [1, 0, 1], p: [0, 0, 90], tw: 0 }), Lmode: "join", L: hand({}), torso: { tw: 4, tp: 0, le: 0, lp: 0, be: 0, bp: 0 } },
+    // as in the Aufguss.it Helicopter tutorial: both hands together just above the head, small circle, ~1.1 turns/s at video speed
+    propeller: { name: ["Propeller", "Propeller"], grip: "corner", towel: "short", tempo: 1.1,
+      R: hand({ c: [0.02, 1.97, 0.06], a: [0.13, 0, 0.13], f: [1, 0, 1], p: [0, 0, 90], tw: 0 }), Lmode: "join", L: hand({}), torso: { tw: 4, tp: 0, le: 0, lp: 0, be: 0, bp: 0 } },
     flag: { name: ["Side flag", "Seitliche Fahne"], grip: "edge", towel: "open", tempo: 0.6,
       R: hand({ c: [0.3, 1.97, 0.18], a: [0.17, 0.03, 0.06], f: [1, 2, 1], p: [0, 90, 90] }), Lmode: "own",
       L: hand({ c: [-0.12, 1.02, 0.3], a: [0.4, 0.03, 0.06], f: [1, 2, 1], p: [0, 90, 90] }), torso: { tw: 10, tp: 0, le: 6, lp: 0, be: 0, bp: 0 } },
@@ -55,7 +56,7 @@
       R: hand({ c: [0.08, 1.72, 0.32], a: [0.02, 0.015, 0.02], f: [1, 2, 1], p: [0, 0, 90] }), Lmode: "join", L: hand({}), torso: { tw: 0, tp: 0, le: 0, lp: 0, be: 0, bp: 0 } },
   };
   const TOWELS = { // cols, rows, width, height (m). strip = 100×75 folded double lengthwise and again
-    strip: [4, 12, 0.375, 1.0], open: [10, 8, 1.0, 0.7], square: [9, 9, 0.75, 0.75], big: [12, 9, 1.5, 1.0],
+    strip: [4, 12, 0.375, 1.0], short: [4, 9, 0.38, 0.7], open: [10, 8, 1.0, 0.7], square: [9, 9, 0.75, 0.75], big: [12, 9, 1.5, 1.0],
   };
   const clone = (o) => JSON.parse(JSON.stringify(o));
 
@@ -257,15 +258,17 @@
         { a: v(B.hipX, 0.1, 0), b: v(B.hipX, B.hipY, 0), r: 0.09 }, { a: v(-B.hipX, 0.1, 0), b: v(-B.hipX, B.hipY, 0), r: 0.09 },
       ];
     }
+    // slow motion slows everything: hands, gravity and air alike (one simulated clock); pause freezes it all
     step(dt, quiet) {
-      const sub_ = 4, h = dt / sub_;
+      const sub_ = 4, sim = (quiet ? 1 : this.running ? this.speed : 0) * dt, h = sim / sub_;
+      if (h <= 0) return;
       for (let s = 0; s < sub_; s++) {
-        if (this.running) { this.t += h * this.speed; this.phase = ((this.t * this.spec.tempo) % 1 + 1) % 1; }
+        this.t += h; this.phase = ((this.t * this.spec.tempo) % 1 + 1) % 1;
         const pose = this.pose(this.phase); this.lastPose = pose;
         const pins = this.pins(pose);
         this.cloth.step(h, pins, this.colliders(), 0.9995);
       }
-      if (!quiet) this.measure(dt);
+      if (!quiet) this.measure(sim);
     }
     // air moved: for every patch of towel, area × the speed it pushes along its own normal (m³/s)
     measure(dt) {
